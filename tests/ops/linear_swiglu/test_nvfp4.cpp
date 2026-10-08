@@ -78,14 +78,14 @@ int main() {
     using namespace ninfer::test::linear_swiglu;
 
     try {
-        constexpr std::array<std::int32_t, 4> kA16Cases{1, 4, 8, 16};
+        constexpr std::array<std::int32_t, 8> kA16Cases{1, 4, 8, 16, 17, 32, 33, 128};
         // Exercise both sides of the native MMA/TMA boundary, including the partial TMA tile.
         constexpr std::array<std::int32_t, 17> kA4Cases{2,   4,   5,   16,  56,  64,  65,  96,  97,
                                                         112, 128, 129, 255, 256, 257, 512, 1024};
         int failures = check_negative_gate();
         failures += run_profile("LinearSwiGLU NVFP4_A16",
                                 {QType::NVFP4, 34816, 5120, 17408, 1801U, ActivationCompute::A16},
-                                kA16Cases);
+                                kA16Cases, std::array<std::int32_t, 3>{17, 33, 128});
         failures += run_profile("LinearSwiGLU NVFP4_A4",
                                 {QType::NVFP4, 34816, 5120, 17408, 1803U, ActivationCompute::A4},
                                 kA4Cases, std::array<std::int32_t, 4>{65, 97, 128, 129});
