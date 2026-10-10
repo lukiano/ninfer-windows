@@ -118,7 +118,12 @@ std::string serve_usage_text(const char* argv0) {
            "HF bucket) into the webui dir and serves it at / alongside the API\n"
            "       --webui-dir DIR serves (and for --webui, downloads into) DIR; "
            "defaults to <model dir>/webui\n"
-           "       --greedy forces temperature 0 (exact argmax).\n";
+           "       --greedy forces temperature 0 (exact argmax).\n"
+#ifdef _WIN32
+           "       [--service NAME --service-log FILE] runs under the Windows service manager\n"
+           "       --service-log appends stdout/stderr; service file paths must be absolute\n"
+#endif
+           ;
 }
 
 ServeOptions parse_serve_options(int argc, char** argv) {
@@ -151,6 +156,19 @@ ServeOptions parse_serve_options(int argc, char** argv) {
         };
         if (arg == "--host") {
             options.host = require_value("--host");
+#ifdef _WIN32
+        } else if (arg == "--service") {
+            options.windows_service_name = require_value("--service");
+            if (options.windows_service_name.empty() || options.windows_service_name.size() > 256 ||
+                options.windows_service_name.find_first_of("/\\") != std::string::npos) {
+                throw std::invalid_argument("--service needs a name of 1..256 bytes without slashes");
+            }
+        } else if (arg == "--service-log") {
+            options.windows_service_log = require_value("--service-log");
+            if (options.windows_service_log.empty()) {
+                throw std::invalid_argument("--service-log must not be empty");
+            }
+#endif
         } else if (arg == "--port") {
             options.port = parse_nonnegative_int(require_value("--port"), "port");
         } else if (arg == "--api-key") {
@@ -336,6 +354,24 @@ ServeOptions parse_serve_options(int argc, char** argv) {
             throw std::invalid_argument("unknown argument: " + arg);
         }
     }
+#ifdef _WIN32
+    if (options.windows_service_name.empty() != options.windows_service_log.empty()) {
+        throw std::invalid_argument("--service and --service-log must be supplied together");
+    }
+    if (!options.windows_service_name.empty()) {
+        const auto require_absolute = [](const std::filesystem::path& path, const char* flag) {
+            if (!path.empty() && !path.is_absolute()) {
+                throw std::invalid_argument(std::string(flag) + " must be absolute in service mode");
+            }
+        };
+        require_absolute(options.artifact_path, "artifact path");
+        require_absolute(options.windows_service_log, "--service-log");
+        require_absolute(options.chat_template_path, "--chat-template");
+        require_absolute(options.context_cost_presets, "--context-cost-presets");
+        require_absolute(options.request_log_jsonl, "--request-log-jsonl");
+        require_absolute(options.webui_dir, "--webui-dir");
+    }
+#endif
     if (!kv_capacity_explicit) {
         options.kv_capacity = KvCapacityPolicy::explicit_capacity(options.max_context);
     }

@@ -44,6 +44,14 @@ ninfer_add_test(ninfer_serve_options_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/../test_serve_options.cpp"
   LIBRARIES ninfer_serve)
 
+if(WIN32)
+  ninfer_add_test(ninfer_windows_service_test
+    SOURCES "${CMAKE_CURRENT_LIST_DIR}/../test_windows_service.cpp"
+            ${PROJECT_SOURCE_DIR}/apps/serve/windows_service.cpp
+    LIBRARIES advapi32)
+  set_tests_properties(ninfer_windows_service_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+endif()
+
 ninfer_add_test(ninfer_request_log_test
   SOURCES "${CMAKE_CURRENT_LIST_DIR}/../test_request_log.cpp"
   LIBRARIES ninfer_serve)

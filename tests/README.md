@@ -58,6 +58,12 @@ cmake --build build --parallel --target ninfer_sampling_test
 ctest --test-dir build -R ninfer_sampling_test --output-on-failure
 ```
 
+On Windows, `ninfer_windows_service_test` exercises native SCM startup, pending checkpoints,
+stop, restart, stdout/stderr capture and failure status using a temporary service and a CPU-only
+fixture. Run it from an administrator shell; it skips with exit code 77 otherwise. It removes
+the test service after execution. `ninfer_serve_options_test` checks service-mode argument and
+absolute-path requirements without administrator privileges.
+
 Enable uniform floating-point error records when establishing or reviewing an Op criterion:
 
 ```bash

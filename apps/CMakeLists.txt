@@ -10,6 +10,10 @@ target_link_libraries(ninfer PRIVATE
 add_executable(ninfer-serve serve/main.cpp)
 ninfer_internal_includes(ninfer-serve)
 target_link_libraries(ninfer-serve PRIVATE ninfer_serve ninfer_product_logging)
+if(WIN32)
+  target_sources(ninfer-serve PRIVATE serve/windows_service.cpp)
+  target_link_libraries(ninfer-serve PRIVATE advapi32)
+endif()
 
 add_executable(ninfer-perplexity
   perplexity/main.cpp

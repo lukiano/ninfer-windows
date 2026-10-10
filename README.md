@@ -76,6 +76,9 @@ What this fork adds on top of upstream:
   window (the stock WebUI, OpenAI-compatible frontends) need no manual configuration.
 - **Portable Windows release** — a self-contained zip containing the executables and all
   runtime DLLs; see [Prebuilt Windows release](#prebuilt-windows-release).
+- **Native Windows service** — `ninfer-serve` can start at boot under the Windows service
+  manager, with startup readiness, stop/shutdown handling and persistent logs; see
+  [Windows service setup](docs/windows.md#running-as-a-windows-service).
 
 Everything else — the Linux build path, the RTX 5090 (`sm_120a`) target, the CUDA 13.1
 requirement, and the NVFP4/W4A4 Blackwell execution paths — is unchanged from upstream.

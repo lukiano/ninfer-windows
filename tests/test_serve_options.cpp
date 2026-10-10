@@ -2,6 +2,7 @@
 #include "serve/translate.h"
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,6 +28,36 @@ ServeOptions parse(std::vector<std::string> arguments) {
 
 int main() {
     int failures = 0;
+
+#ifdef _WIN32
+    const ServeOptions service_options = parse({"ninfer-serve", "C:/models/model.ninfer",
+        "--service", "NInfer", "--service-log", "C:/logs/ninfer.log"});
+    failures += check(service_options.windows_service_name == "NInfer" &&
+                          service_options.windows_service_log == "C:/logs/ninfer.log",
+                      "Windows service options were not preserved");
+    for (auto arguments : std::vector<std::vector<std::string>>{
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer"},
+             {"ninfer-serve", "C:/model.ninfer", "--service-log", "C:/log.txt"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "", "--service-log", "C:/log.txt"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "bad/name", "--service-log", "C:/log.txt"},
+             {"ninfer-serve", "model.ninfer", "--service", "NInfer", "--service-log", "C:/log.txt"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer", "--service-log", "log.txt"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer", "--service-log", "C:/log.txt",
+              "--chat-template", "template.jinja"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer", "--service-log", "C:/log.txt",
+              "--request-log-jsonl", "requests.jsonl"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer", "--service-log", "C:/log.txt",
+              "--context-cost-presets", "presets.json"},
+             {"ninfer-serve", "C:/model.ninfer", "--service", "NInfer", "--service-log", "C:/log.txt",
+              "--webui-dir", "webui"}}) {
+        bool rejected = false;
+        try { (void)parse(std::move(arguments)); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        failures += check(rejected, "invalid Windows service configuration was accepted");
+    }
+    failures += check(serve_usage_text("ninfer-serve").find("--service NAME") != std::string::npos,
+                      "serve help omits Windows service mode");
+#endif
 
     const ServeOptions defaults = parse({"ninfer-serve", "model.ninfer"});
     failures += check(defaults.allow_prefix_reuse, "prefix reuse is not enabled by default");

@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <memory>
 #include <string>
@@ -42,7 +43,7 @@ public:
     // Engine is ready, then listen() enters the blocking accept loop on the already-bound socket.
     bool bind();
     void attach(GenerationService& service);
-    bool listen();
+    bool listen(std::function<void()> on_ready = {});
     void stop();
 
     [[nodiscard]] const std::string& public_model_id() const noexcept { return public_model_id_; }

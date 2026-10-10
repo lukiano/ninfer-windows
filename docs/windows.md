@@ -90,6 +90,70 @@ The API is then available at `http://127.0.0.1:8080/v1`. To listen on the networ
 localhost, pass `--host 0.0.0.0` and allow TCP 8080 through Windows Firewall for the
 `ninfer-serve.exe` process.
 
+## Running as a Windows service
+
+`ninfer-serve` has native Windows service support; no wrapper is required. Add
+`--service NAME --service-log FILE` to the ordinary model/server arguments and register that
+command with Windows. The name must match the registered service name. Without these flags,
+the executable continues to run in the console. `--service` must be started by the service
+manager; launching it directly from a terminal reports an error.
+
+Use absolute paths for the executable, artifact, service log, and any configured chat template,
+context-cost presets, request JSONL log or WebUI directory. The service does not depend on an
+interactive user's working directory. Keep runtime DLLs beside the executable. Create the log
+directory first; the log file is created if absent and appended on each start. Service stdout
+and stderr, including loading diagnostics and operational logs, go to this file. It does not
+rotate automatically. `--request-log-jsonl` remains a separate optional request log.
+
+From an **administrator PowerShell** prompt, adjust the paths and model options below:
+
+```powershell
+$exe = 'H:\Projects\ninfer-windows\build-vs2026\apps\Release\ninfer-serve.exe'
+$model = 'H:\Projects\ninfer-windows\models\qwen3_8_27b_nvfp4full.v3.ninfer'
+$log = 'H:\Projects\ninfer-windows\out\ninfer-service.log'
+New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
+$command = '"{0}" "{1}" --service NInfer --service-log "{2}" --host 127.0.0.1 --port 8080 --max-context 16384 --kv-capacity auto' -f $exe, $model, $log
+New-Service -Name NInfer -DisplayName 'NInfer HTTP server' `
+  -BinaryPathName $command -StartupType Automatic
+sc.exe config NInfer start= delayed-auto
+Start-Service NInfer
+Get-Service NInfer
+Get-Content $log -Tail 30
+Invoke-RestMethod http://127.0.0.1:8080/health
+```
+
+The example uses LocalSystem, Windows' default service account. A different service account must
+have read access to the artifact, executable, DLLs and configured inputs, plus write access to
+logs and any WebUI download/cache directory. Use local disks; drive mappings from an interactive
+login are not available to a service. Verify `/health` and a generation request under the actual
+service account to confirm NVIDIA driver/CUDA access and available GPU memory. Service mode uses
+the same single-GPU Engine and serving options as console mode.
+
+Windows sees `START_PENDING` while the model loads and warms up, with periodic checkpoints and
+wait hints, then `RUNNING` when the HTTP accept loop starts. Stop/shutdown controls are accepted
+after startup completes. Stop closes the listening socket and lets existing handlers finish
+before releasing the Engine; long in-flight requests can delay completion. `STOP_PENDING`
+checkpoints continue during cleanup. Windows' system-shutdown deadline can still terminate a
+service that takes too long; this mode does not change that machine policy. Startup/runtime
+failure reports `STOPPED` with a service-specific nonzero exit code. Log-opening and host failures
+also emit an Application event from `ninfer-serve`.
+
+```powershell
+Stop-Service NInfer
+Start-Service NInfer
+# Optional: restart after an unexpected failure (not an explicit service stop).
+sc.exe failure NInfer reset= 86400 actions= restart/10000/restart/30000
+sc.exe failureflag NInfer 1
+# Remove the service when no longer needed.
+Stop-Service NInfer
+sc.exe delete NInfer
+```
+
+Server arguments are stored in the service's binary path. To change them, stop the service,
+update its configuration with `sc.exe config NInfer binPath= $command`, then start it again.
+Do not run a second console server using the same GPU/model allocation or port while this
+service is active.
+
 ## DFlash2
 
 Qwen3.8-27B supports DFlash2 with the current `groupwise-int`, `nvfp4` and `nvfp4full`

@@ -21,6 +21,10 @@ inline constexpr std::size_t kDefaultResponseStoreBytes   = 256ULL << 20;
 
 struct ServeOptions {
     bool help_requested = false;
+#ifdef _WIN32
+    std::string windows_service_name;
+    std::filesystem::path windows_service_log;
+#endif
     std::string artifact_path;
     std::filesystem::path chat_template_path;
     std::string host = "127.0.0.1";

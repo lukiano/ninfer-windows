@@ -755,11 +755,12 @@ void HttpServer::attach(GenerationService& service) {
                                       service.memory_summary());
 }
 
-bool HttpServer::listen() {
+bool HttpServer::listen(std::function<void()> on_ready) {
     if (service_ == nullptr) { throw std::logic_error("HTTP generation service is not attached"); }
     if (public_model_id_.empty()) {
         throw std::logic_error("HTTP public model id is not resolved");
     }
+    server_.set_start_handler(std::move(on_ready));
     if (options_.log_stats_interval_ms != 0) {
         stats_stopping_ = false;
         stats_thread_   = std::thread([this] { run_stats_reporter(); });

@@ -5,6 +5,10 @@ Anthropic-compatible HTTP endpoints over one resident NInfer Engine.
 
 ## Start the server
 
+On Windows, the same server can run under the service manager with
+`--service NAME --service-log FILE`; see [Windows service setup](windows.md#running-as-a-windows-service)
+for installation, account permissions, logs, and start/stop commands.
+
 See [CUDA synchronization](cli.md#cuda-synchronization) for the shared `NINFER_CUDA_SYNC` setting.
 
 ```bash

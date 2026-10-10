@@ -4,6 +4,9 @@
 #include "serve/http_server.h"
 #include "serve/serve_options.h"
 #include "serve/webui_update.h"
+#ifdef _WIN32
+#include "windows_service.h"
+#endif
 
 #include <spdlog/logger.h>
 
@@ -28,25 +31,11 @@ void handle_signal(int) {
     if (server != nullptr) { server->stop(); }
 }
 
-} // namespace
-
-int main(int argc, char** argv) {
-    ninfer::serve::ServeOptions options;
-    try {
-        options = ninfer::serve::parse_serve_options(argc, argv);
-    } catch (const std::invalid_argument& exception) {
-        std::cerr << "ninfer-serve: " << exception.what() << '\n';
-        std::cerr << ninfer::serve::serve_usage_text(argv[0]);
-        return 1;
-    } catch (const std::exception& exception) {
-        std::cerr << "ninfer-serve: " << exception.what() << '\n';
-        return 1;
-    }
-    if (options.help_requested) {
-        std::cout << ninfer::serve::serve_usage_text(argv[0]);
-        return 0;
-    }
-
+int run_server(ninfer::serve::ServeOptions options
+#ifdef _WIN32
+               , ninfer::app::WindowsService* service_host = nullptr
+#endif
+               ) {
     ninfer::product::LoggingRuntime logging(
         {.logger_name  = "ninfer-serve",
          .level        = options.log_level,
@@ -99,17 +88,33 @@ int main(int argc, char** argv) {
             std::chrono::duration<double>(Clock::now() - warmup_started).count());
         server.attach(service);
 
-        g_server.store(&server);
-        std::signal(SIGINT, handle_signal);
-        std::signal(SIGTERM, handle_signal);
+#ifdef _WIN32
+        std::unique_ptr<ninfer::app::WindowsService::StopRegistration> service_stop;
+        if (service_host) {
+            service_stop = std::make_unique<ninfer::app::WindowsService::StopRegistration>(
+                *service_host, [&server] { server.stop(); });
+        } else
+#endif
+        {
+            g_server.store(&server);
+            std::signal(SIGINT, handle_signal);
+            std::signal(SIGTERM, handle_signal);
+        }
 
         serving = true;
-        operational_log.server_ready(options.host, options.port, server.public_model_id(),
-                                     !options.api_key.empty());
-
-        const bool ok = server.listen();
+        const bool ok = server.listen([&] {
+#ifdef _WIN32
+            if (service_host) { service_host->ready(); }
+#endif
+            operational_log.server_ready(options.host, options.port, server.public_model_id(),
+                                         !options.api_key.empty());
+        });
         g_server.store(nullptr);
-        if (!ok) {
+        if (!ok
+#ifdef _WIN32
+            && !(service_host && service_host->stop_requested())
+#endif
+            ) {
             operational_log.listen_failure(options.host, options.port);
             return 1;
         }
@@ -118,6 +123,33 @@ int main(int argc, char** argv) {
     } catch (const std::exception& exception) {
         g_server.store(nullptr);
         operational_log.server_failure(serving, exception.what());
+        return 1;
+    }
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    try {
+        const ninfer::serve::ServeOptions options = ninfer::serve::parse_serve_options(argc, argv);
+        if (options.help_requested) {
+            std::cout << ninfer::serve::serve_usage_text(argv[0]);
+            return 0;
+        }
+#ifdef _WIN32
+        if (!options.windows_service_name.empty()) {
+            return ninfer::app::run_windows_service(
+                options.windows_service_name, options.windows_service_log,
+                [&options](ninfer::app::WindowsService& host) { return run_server(options, &host); });
+        }
+#endif
+        return run_server(options);
+    } catch (const std::invalid_argument& exception) {
+        std::cerr << "ninfer-serve: " << exception.what() << '\n';
+        std::cerr << ninfer::serve::serve_usage_text(argv[0]);
+        return 1;
+    } catch (const std::exception& exception) {
+        std::cerr << "ninfer-serve: " << exception.what() << '\n';
         return 1;
     }
 }
